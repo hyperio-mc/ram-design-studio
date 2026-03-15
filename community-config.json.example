@@ -1,8 +1,12 @@
 {
-  "_note": "Copy this to community-config.json and fill in your values. Never commit community-config.json.",
-  "GITHUB_TOKEN": "ghp_...",
-  "GITHUB_REPO": "owner/design-studio-queue",
+  "_note": "Copy to community-config.json and fill in your values. Never commit community-config.json.",
+  "GITHUB_TOKEN": "ghp_YOUR_PAT_WITH_REPO_SCOPE",
+  "GITHUB_REPO": "your-username/your-queue-repo",
   "QUEUE_FILE": "queue.json",
-  "RAW_QUEUE_URL": "https://raw.githubusercontent.com/owner/design-studio-queue/main/queue.json"
+  "RAW_QUEUE_URL": "https://raw.githubusercontent.com/your-username/your-queue-repo/main/queue.json",
+  "_llm_note": "Add one of the following for LLM-powered PRD expansion (optional — falls back to rule-based if omitted):",
+  "ANTHROPIC_API_KEY": "sk-ant-YOUR_KEY",
+  "OPENAI_API_KEY": "sk-YOUR_KEY",
+  "ANTHROPIC_BASE_URL": "https://api.anthropic.com",
+  "OPENAI_BASE_URL": "https://api.openai.com"
 }
-
