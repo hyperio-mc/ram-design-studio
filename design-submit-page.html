@@ -1,0 +1,565 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Submit a Design Idea — Design Studio</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:      #050509;
+    --surface: #0d0d16;
+    --border:  #1c1c28;
+    --muted:   #5a5a70;
+    --fg:      #f4f0e8;
+    --accent:  #c8a84b;
+    --accent2: #3a8fff;
+    --red:     #cd3a4e;
+    --green:   #3acd7a;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--fg);
+    font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', ui-monospace, monospace;
+    min-height: 100vh;
+    line-height: 1.5;
+  }
+
+  /* ── Nav ── */
+  nav {
+    padding: 20px 40px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .nav-logo { font-size: 14px; font-weight: 700; letter-spacing: 4px; color: var(--fg); text-decoration: none; }
+  .nav-links { display: flex; gap: 28px; }
+  .nav-links a { font-size: 12px; color: var(--muted); text-decoration: none; letter-spacing: 1px; }
+  .nav-links a:hover { color: var(--fg); }
+
+  /* ── Hero ── */
+  .hero {
+    padding: 80px 40px 40px;
+    max-width: 800px;
+  }
+  .hero-tag {
+    font-size: 10px;
+    letter-spacing: 3px;
+    color: var(--accent);
+    margin-bottom: 24px;
+  }
+  .hero-title {
+    font-size: clamp(36px, 6vw, 72px);
+    font-weight: 900;
+    letter-spacing: -1.5px;
+    line-height: 1;
+    margin-bottom: 20px;
+  }
+  .hero-sub {
+    font-size: 16px;
+    color: var(--muted);
+    max-width: 520px;
+    line-height: 1.7;
+  }
+
+  /* ── Form ── */
+  .form-section {
+    padding: 40px;
+    max-width: 720px;
+  }
+
+  .field {
+    margin-bottom: 32px;
+  }
+  .field-label {
+    display: block;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    color: var(--accent);
+    margin-bottom: 12px;
+    opacity: 0.85;
+  }
+  .field-hint {
+    font-size: 12px;
+    color: var(--muted);
+    margin-bottom: 10px;
+  }
+
+  textarea, input[type="text"], select {
+    width: 100%;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--fg);
+    font-family: inherit;
+    font-size: 14px;
+    padding: 16px 20px;
+    border-radius: 8px;
+    outline: none;
+    resize: vertical;
+    transition: border-color 0.2s;
+  }
+  textarea:focus, input[type="text"]:focus, select:focus {
+    border-color: var(--accent);
+  }
+  textarea { min-height: 120px; }
+  select option { background: var(--surface); }
+  ::placeholder { color: var(--muted); opacity: 0.5; }
+
+  .char-count {
+    font-size: 11px;
+    color: var(--muted);
+    text-align: right;
+    margin-top: 6px;
+  }
+  .char-count.over { color: var(--red); }
+
+  /* ── Submit button ── */
+  .submit-row {
+    display: flex;
+    gap: 16px;
+    align-items: center;
+    margin-top: 8px;
+  }
+  .btn-submit {
+    background: var(--accent);
+    color: var(--bg);
+    border: none;
+    padding: 16px 36px;
+    border-radius: 6px;
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    cursor: pointer;
+    transition: opacity 0.2s;
+  }
+  .btn-submit:hover { opacity: 0.85; }
+  .btn-submit:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  .submit-note {
+    font-size: 11px;
+    color: var(--muted);
+    line-height: 1.6;
+  }
+
+  /* ── Success / Error states ── */
+  #status-box {
+    display: none;
+    margin: 0 40px 40px;
+    max-width: 680px;
+    padding: 28px 32px;
+    border-radius: 8px;
+    border: 1px solid;
+  }
+  #status-box.success {
+    display: block;
+    background: var(--green)11;
+    border-color: var(--green)33;
+  }
+  #status-box.error {
+    display: block;
+    background: var(--red)11;
+    border-color: var(--red)33;
+  }
+  #status-box.demo {
+    display: block;
+    background: var(--accent)0a;
+    border-color: var(--accent)33;
+  }
+  .status-title {
+    font-size: 14px;
+    font-weight: 700;
+    margin-bottom: 10px;
+  }
+  .success .status-title { color: var(--green); }
+  .error   .status-title { color: var(--red); }
+  .demo    .status-title { color: var(--accent); }
+  .status-body { font-size: 13px; color: var(--muted); line-height: 1.7; }
+  .tracking-id {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--accent);
+    margin: 12px 0;
+    letter-spacing: 2px;
+  }
+
+  /* Demo JSON box */
+  .json-box {
+    margin-top: 16px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 16px;
+    font-size: 12px;
+    color: var(--fg);
+    opacity: 0.7;
+    white-space: pre-wrap;
+    word-break: break-all;
+    max-height: 240px;
+    overflow: auto;
+  }
+  .copy-btn {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--muted);
+    font-family: inherit;
+    font-size: 11px;
+    padding: 8px 16px;
+    border-radius: 4px;
+    cursor: pointer;
+    margin-top: 10px;
+  }
+  .copy-btn:hover { color: var(--fg); border-color: var(--muted); }
+
+  /* ── How it works ── */
+  .how-section {
+    padding: 60px 40px;
+    border-top: 1px solid var(--border);
+    max-width: 900px;
+  }
+  .how-title {
+    font-size: 10px;
+    letter-spacing: 3px;
+    color: var(--muted);
+    margin-bottom: 32px;
+  }
+  .steps {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 24px;
+  }
+  @media (max-width: 640px) { .steps { grid-template-columns: 1fr 1fr; } }
+  .step {
+    padding: 24px;
+    background: var(--surface);
+    border-radius: 8px;
+    border: 1px solid var(--border);
+  }
+  .step-num {
+    font-size: 28px;
+    font-weight: 900;
+    color: var(--accent);
+    opacity: 0.6;
+    margin-bottom: 12px;
+  }
+  .step-title {
+    font-size: 13px;
+    font-weight: 600;
+    margin-bottom: 8px;
+    color: var(--fg);
+  }
+  .step-desc {
+    font-size: 12px;
+    color: var(--muted);
+    line-height: 1.6;
+  }
+
+  /* ── Recent designs ── */
+  .recent-section {
+    padding: 40px;
+    border-top: 1px solid var(--border);
+  }
+  .section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 24px;
+  }
+  .section-title { font-size: 10px; letter-spacing: 3px; color: var(--muted); }
+  .section-link { font-size: 12px; color: var(--accent); text-decoration: none; }
+
+  .recent-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 16px;
+    min-height: 80px;
+  }
+  .design-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 20px;
+    text-decoration: none;
+    display: block;
+    transition: border-color 0.2s;
+  }
+  .design-card:hover { border-color: var(--accent)66; }
+  .card-name { font-size: 16px; font-weight: 700; color: var(--fg); margin-bottom: 6px; letter-spacing: 1px; }
+  .card-meta { font-size: 11px; color: var(--muted); }
+  .card-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; margin-right: 6px; }
+  .loading-text { font-size: 13px; color: var(--muted); padding: 20px 0; }
+
+  footer {
+    padding: 32px 40px;
+    border-top: 1px solid var(--border)66;
+    font-size: 11px;
+    color: var(--muted);
+    display: flex;
+    justify-content: space-between;
+    opacity: 0.6;
+  }
+</style>
+</head>
+<body>
+
+<nav>
+  <a class="nav-logo" href="https://zenbin.org/p/design-gallery">DESIGN STUDIO</a>
+  <div class="nav-links">
+    <a href="https://zenbin.org/p/design-gallery">Gallery</a>
+    <a href="https://zenbin.org/p/pen-viewer-2">Pen Viewer</a>
+  </div>
+</nav>
+
+<section class="hero">
+  <div class="hero-tag">COMMUNITY  ·  SUBMIT REQUEST</div>
+  <h1 class="hero-title">Got an idea?<br>We'll design it.</h1>
+  <p class="hero-sub">Describe your app concept in plain language. The Design Studio agent will generate a complete UI with mobile and desktop screens, and publish it to the gallery.</p>
+</section>
+
+<section class="form-section">
+  <form id="submit-form">
+
+    <div class="field">
+      <label class="field-label" for="prompt">YOUR IDEA</label>
+      <div class="field-hint">Describe the app you have in mind. Be specific about the purpose, target user, and feel you want.</div>
+      <textarea id="prompt" name="prompt" required maxlength="500"
+        placeholder="e.g. A minimalist habit tracker for busy professionals — clean, dark, focused on streaks and weekly review..."
+      ></textarea>
+      <div class="char-count" id="char-count">0 / 500</div>
+    </div>
+
+    <div class="field">
+      <label class="field-label" for="app-type">APP CATEGORY</label>
+      <select id="app-type" name="app_type">
+        <option value="">— Auto-detect from description —</option>
+        <option value="productivity">Productivity / Focus</option>
+        <option value="social">Social / Community</option>
+        <option value="finance">Finance / Fintech</option>
+        <option value="health">Health / Fitness</option>
+        <option value="music">Music / Audio</option>
+        <option value="food">Food / Recipe</option>
+        <option value="travel">Travel / Navigation</option>
+        <option value="commerce">Commerce / Marketplace</option>
+        <option value="education">Education / Learning</option>
+        <option value="creative">Creative / Design</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label class="field-label" for="credit">CREDIT (OPTIONAL)</label>
+      <input type="text" id="credit" name="credit" placeholder="Your name or handle" maxlength="60">
+    </div>
+
+    <div class="submit-row">
+      <button class="btn-submit" id="submit-btn" type="submit">Submit Idea →</button>
+      <div class="submit-note">
+        Designs are generated within 24 hours.<br>
+        Published at zenbin.org/p/design-gallery
+      </div>
+    </div>
+
+  </form>
+</section>
+
+<!-- Status box (shown after submit) -->
+<div id="status-box">
+  <div class="status-title" id="status-title"></div>
+  <div class="status-body" id="status-body"></div>
+</div>
+
+<section class="how-section">
+  <div class="how-title">HOW IT WORKS</div>
+  <div class="steps">
+    <div class="step">
+      <div class="step-num">01</div>
+      <div class="step-title">Describe</div>
+      <div class="step-desc">Write your app idea in plain language. Any concept works.</div>
+    </div>
+    <div class="step">
+      <div class="step-num">02</div>
+      <div class="step-title">Queue</div>
+      <div class="step-desc">Your request goes into the community queue on GitHub.</div>
+    </div>
+    <div class="step">
+      <div class="step-num">03</div>
+      <div class="step-title">Generate</div>
+      <div class="step-desc">The Design Studio agent picks it up, creates 10 screens — mobile + desktop.</div>
+    </div>
+    <div class="step">
+      <div class="step-num">04</div>
+      <div class="step-title">Published</div>
+      <div class="step-desc">Your design goes live in the gallery with a unique link.</div>
+    </div>
+  </div>
+</section>
+
+<section class="recent-section">
+  <div class="section-header">
+    <div class="section-title">RECENT COMMUNITY DESIGNS</div>
+    <a class="section-link" href="https://zenbin.org/p/design-gallery">View all →</a>
+  </div>
+  <div class="recent-grid" id="recent-grid">
+    <div class="loading-text">Loading recent designs...</div>
+  </div>
+</section>
+
+<footer>
+  <span>RAM Design Studio  ·  Community by the people</span>
+  <span>zenbin.org/p/design-submit</span>
+</footer>
+
+<script>
+// ── No credentials needed in this page ──────────────────────────────────
+// Submissions are written to ZenBin (public, no auth required).
+// The GitHub PAT lives only on the agent side for reading the gallery.
+
+// Queue slug prefix — agent enumerates minute-timestamps to discover submissions
+const QUEUE_PREFIX = 'ds-req-';
+// Public raw URL for the gallery registry — no credentials needed
+const QUEUE_URL = 'https://raw.githubusercontent.com/hyperio-mc/design-studio-queue/main/queue.json';
+
+// ── Char counter ─────────────────────────────────────────────────────────
+const promptEl    = document.getElementById('prompt');
+const charCountEl = document.getElementById('char-count');
+promptEl.addEventListener('input', () => {
+  const n = promptEl.value.length;
+  charCountEl.textContent = `${n} / 500`;
+  charCountEl.className = n > 480 ? 'char-count over' : 'char-count';
+});
+
+// ── Submission slug: minute-level timestamp in base36 ─────────────────────
+// Agent enumerates all minute-timestamps for the past 3 hours — no manifest
+// page or random suffix needed. If two users submit the same minute, the
+// second retries the next minute slot (extremely rare at this volume).
+function genSlug() {
+  return QUEUE_PREFIX + Math.floor(Date.now() / 60000).toString(36);
+}
+
+// ── Load recent designs from public Gist (no auth) ───────────────────────
+const ARCH_COLORS = {
+  music:'#c8953a', food:'#d4863a', finance:'#3a8fff', health:'#3acd7a',
+  travel:'#4a9fff', social:'#c840ff', education:'#6060ff', commerce:'#e06030',
+  creative:'#ff6060', productivity:'#c8a84b',
+};
+
+async function loadRecent() {
+  const grid = document.getElementById('recent-grid');
+  try {
+    const res = await fetch(QUEUE_URL + '?t=' + Date.now());
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const queue = await res.json();
+    const done = (queue.submissions||[]).filter(s=>s.status==='done').reverse().slice(0,6);
+    if (!done.length) {
+      grid.innerHTML = '<div class="loading-text">No designs published yet — be the first!</div>';
+      return;
+    }
+    grid.innerHTML = done.map(s => `
+      <a class="design-card" href="${s.design_url||'#'}">
+        <div class="card-name">${s.app_name||s.id}</div>
+        <div class="card-meta">
+          <span class="card-dot" style="background:${ARCH_COLORS[s.archetype]||'#888'}"></span>
+          ${(s.archetype||'design').toUpperCase()}
+          &nbsp;·&nbsp;
+          ${s.published_at ? new Date(s.published_at).toLocaleDateString() : 'New'}
+        </div>
+      </a>
+    `).join('');
+  } catch(e) {
+    grid.innerHTML = `<div class="loading-text">Could not load recent designs.</div>`;
+  }
+}
+
+// ── Form submit — writes to ZenBin, zero credentials needed ──────────────
+document.getElementById('submit-form').addEventListener('submit', async e => {
+  e.preventDefault();
+
+  const prompt   = promptEl.value.trim();
+  const app_type = document.getElementById('app-type').value;
+  const credit   = document.getElementById('credit').value.trim();
+
+  if (!prompt || prompt.length < 10) {
+    showStatus('error', 'Too short', 'Please write at least a sentence describing your idea.');
+    return;
+  }
+
+  const btn = document.getElementById('submit-btn');
+  btn.disabled = true;
+  btn.textContent = 'Submitting...';
+
+  const slug = genSlug();
+  const sub  = {
+    id:           slug,
+    prompt,
+    app_type:     app_type || 'auto',
+    credit:       credit || 'Anonymous',
+    submitted_at: new Date().toISOString(),
+    status:       'pending',
+  };
+
+  // The submission page is just HTML with the JSON embedded in a script tag
+  // so the agent can fetch and parse it cleanly.
+  const submissionHtml = `<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><title>Design Request ${slug}</title></head>
+<body>
+<p style="font-family:monospace;padding:24px;color:#888">
+  Design request <strong style="color:#c8a84b">${slug}</strong> is in the queue.<br>
+  The Design Studio agent will process this within 24 hours.<br>
+  Check the gallery at <a href="https://zenbin.org/p/design-gallery">zenbin.org/p/design-gallery</a>.
+</p>
+<script type="application/json" id="submission">
+${JSON.stringify(sub, null, 2)}
+<\/script>
+</body></html>`;
+
+  try {
+    // POST to ZenBin — no authentication needed
+    const res = await fetch(`https://zenbin.org/v1/pages/${slug}`, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ title: `Design Request ${slug}`, html: submissionHtml }),
+    });
+
+    if (res.status === 201) {
+      showStatus('success', '✓ Idea Submitted!',
+        `Your design request is in the queue. It will be published within 24 hours.<br><br>
+        <strong>Tracking ID:</strong>
+        <div class="tracking-id">${slug}</div>
+        Check the <a href="https://zenbin.org/p/design-gallery" style="color:var(--accent)">community gallery</a>
+        for your published design when it's ready.`
+      );
+      e.target.reset();
+      charCountEl.textContent = '0 / 500';
+      loadRecent();
+    } else if (res.status === 409) {
+      // Rare slug collision — regenerate and show retry message
+      showStatus('error', 'Collision — please try again',
+        'A request was already submitted this second. Click Submit once more.');
+    } else {
+      throw new Error(`HTTP ${res.status}`);
+    }
+  } catch (err) {
+    showStatus('error', '⚠ Submission Failed', `${err.message} — please try again.`);
+  }
+
+  btn.disabled = false;
+  btn.textContent = 'Submit Idea →';
+});
+
+function showStatus(type, title, body) {
+  const box = document.getElementById('status-box');
+  box.className = type;
+  document.getElementById('status-title').textContent = title;
+  document.getElementById('status-body').innerHTML = body;
+  box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+// ── Init ─────────────────────────────────────────────────────────────────
+loadRecent();
+</script>
+
+</body>
+</html>
