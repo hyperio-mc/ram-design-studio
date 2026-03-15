@@ -371,6 +371,14 @@ function parsePRD(markdown) {
   return result;
 }
 
+// ── Strip PRD screen entry to a clean title: "**Home Dashboard**: desc…" → "Home Dashboard" ──
+function cleanScreenName(s) {
+  return s
+    .replace(/\*\*/g, '')           // remove bold markers
+    .replace(/:.*$/, '')            // remove ": description" part
+    .trim();
+}
+
 // ── Minimal markdown → HTML renderer (for PRD display) ───────────────────────
 function mdToHtml(md) {
   return md
@@ -426,17 +434,23 @@ function screenThumbSVG(screen, tw, th) {
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${sw} ${sh}" width="${tw}" height="${th}" style="display:block;border-radius:6px;flex-shrink:0"><rect width="${sw}" height="${sh}" fill="${screen.fill||'#111'}"/>${kids}</svg>`;
 }
 
-function buildHeartbeatHTML(sub, doc, meta, penJson, prdMarkdown) {
+function buildHeartbeatHTML(sub, doc, meta, penJson, prdMarkdown, prdScreenNames) {
   const encoded = Buffer.from(JSON.stringify(penJson)).toString('base64');
   const screens = doc.children || [];
   // Thumbnail dimensions — all at height 180px, width proportional to aspect ratio
   const THUMB_H = 180;
+  // prdScreenNames is array of 5 clean screen titles (shared between mobile + desktop)
+  const screenLabels = (prdScreenNames && prdScreenNames.length) ? prdScreenNames : null;
   const thumbsHTML = screens.map((s, i) => {
     const tw = Math.round(THUMB_H * (s.width / s.height));
     const isMobile = s.width < 500;
+    const screenIdx = i % 5; // 0-4 for both mobile and desktop halves
+    const label = screenLabels
+      ? `${isMobile ? 'M' : 'D'} · ${screenLabels[screenIdx] || (isMobile ? 'MOBILE' : 'DESKTOP') + ' ' + (screenIdx + 1)}`
+      : `${isMobile ? 'MOBILE' : 'DESKTOP'} ${screenIdx + 1}`;
     return `<div style="text-align:center;flex-shrink:0">
       ${screenThumbSVG(s, tw, THUMB_H)}
-      <div style="font-size:9px;opacity:.3;margin-top:8px;letter-spacing:1px">${isMobile ? 'MOBILE' : 'DESKTOP'} ${i % 5 + 1}</div>
+      <div style="font-size:9px;opacity:.4;margin-top:8px;letter-spacing:1px;max-width:${tw}px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${label.toUpperCase()}</div>
     </div>`;
   }).join('');
 
@@ -629,9 +643,10 @@ async function main() {
       // Step 2: Generate design — PRD signals override auto-detected values
       console.log('  🎨 Generating design...');
       const { doc, meta } = generateDesign({
-        prompt:          prdMarkdown || sub.prompt,  // richer context for archetype detection
-        appNameOverride: sub.app_name_override || prd.appName || undefined,
-        taglineOverride: prd.tagline || undefined,
+        prompt:              sub.prompt,  // use original prompt for archetype/palette detection
+        appNameOverride:     sub.app_name_override || prd.appName || undefined,
+        taglineOverride:     prd.tagline || undefined,
+        screenNamesOverride: prd.screens.length ? prd.screens.map(cleanScreenName) : undefined,
       });
       console.log(`  ✓ ${meta.appName} (${meta.archetype}, ${meta.screens} screens)`);
 
@@ -643,7 +658,8 @@ async function main() {
       sub.published_at = new Date().toISOString();
       sub.status       = 'done';
 
-      const html = buildHeartbeatHTML(sub, doc, meta, doc, prdMarkdown);
+      const prdScreenNames = prd.screens.length ? prd.screens.map(cleanScreenName) : null;
+      const html = buildHeartbeatHTML(sub, doc, meta, doc, prdMarkdown, prdScreenNames);
       console.log(`  📤 Publishing to zenbin.org/p/${designSlug}...`);
 
       let publishedOk = false;
