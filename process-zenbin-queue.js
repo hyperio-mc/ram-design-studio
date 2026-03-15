@@ -10,6 +10,7 @@
 // Credentials loaded automatically from community-config.json
 
 const https = require('https');
+const http  = require('http');
 const fs    = require('fs');
 const path  = require('path');
 
@@ -23,6 +24,12 @@ const GITHUB_REPO  = process.env.GITHUB_REPO  || config.GITHUB_REPO  || '';
 const QUEUE_FILE   = config.QUEUE_FILE || 'queue.json';
 const ZENBIN_HOST  = 'zenbin.org';
 const QUEUE_PREFIX = 'ds-req-';
+
+// ── LLM config (optional — enables PRD expansion before design generation) ────
+const ANTHROPIC_KEY  = process.env.ANTHROPIC_API_KEY || config.ANTHROPIC_API_KEY || '';
+const ANTHROPIC_BASE = (process.env.ANTHROPIC_BASE_URL || config.ANTHROPIC_BASE_URL || 'https://api.anthropic.com').replace(/\/$/, '');
+const OPENAI_KEY     = process.env.OPENAI_API_KEY    || config.OPENAI_API_KEY    || '';
+const OPENAI_BASE    = (config.OPENAI_BASE_URL || 'https://api.openai.com').replace(/\/$/, '');
 
 // ── HTTP helpers ──────────────────────────────────────────────────────────────
 function req(opts, body) {
@@ -149,6 +156,238 @@ function parseSubmission(html) {
   try { return JSON.parse(match[1].trim()); } catch { return null; }
 }
 
+// ── LLM request helper (handles both http:// and https:// base URLs) ──────────
+function reqAny(urlStr, opts, body) {
+  return new Promise((resolve, reject) => {
+    const u   = new URL(urlStr);
+    const mod = u.protocol === 'https:' ? https : http;
+    const options = {
+      hostname: u.hostname,
+      port:     u.port || (u.protocol === 'https:' ? 443 : 80),
+      path:     u.pathname + (u.search || ''),
+      method:   opts.method || 'POST',
+      headers:  opts.headers || {},
+    };
+    const r = mod.request(options, res => {
+      let data = '';
+      res.on('data', c => { data += c; });
+      res.on('end', () => resolve({ status: res.statusCode, body: data }));
+    });
+    r.on('error', reject);
+    if (body) r.write(body);
+    r.end();
+  });
+}
+
+// ── LLM caller — tries Anthropic then OpenAI, returns null if neither works ───
+async function callLLM(userPrompt) {
+  if (ANTHROPIC_KEY) {
+    try {
+      const body = JSON.stringify({
+        model: 'claude-haiku-4-5',
+        max_tokens: 1024,
+        messages: [{ role: 'user', content: userPrompt }],
+      });
+      const r = await reqAny(`${ANTHROPIC_BASE}/v1/messages`, {
+        headers: {
+          'Content-Type':      'application/json',
+          'Content-Length':    Buffer.byteLength(body),
+          'x-api-key':         ANTHROPIC_KEY,
+          'anthropic-version': '2023-06-01',
+        },
+      }, body);
+      if (r.status === 200) return JSON.parse(r.body).content[0].text;
+      console.warn(`  ⚠ Anthropic ${r.status}: ${r.body.slice(0, 120)}`);
+    } catch (e) { console.warn(`  ⚠ Anthropic error: ${e.message}`); }
+  }
+  if (OPENAI_KEY) {
+    try {
+      const body = JSON.stringify({
+        model: 'gpt-4o-mini',
+        max_tokens: 1024,
+        messages: [{ role: 'user', content: userPrompt }],
+      });
+      const r = await reqAny(`${OPENAI_BASE}/v1/chat/completions`, {
+        headers: {
+          'Content-Type':   'application/json',
+          'Content-Length': Buffer.byteLength(body),
+          'Authorization':  `Bearer ${OPENAI_KEY}`,
+        },
+      }, body);
+      if (r.status === 200) return JSON.parse(r.body).choices[0].message.content;
+      console.warn(`  ⚠ OpenAI ${r.status}: ${r.body.slice(0, 120)}`);
+    } catch (e) { console.warn(`  ⚠ OpenAI error: ${e.message}`); }
+  }
+  return null;
+}
+
+// ── PRD expander ───────────────────────────────────────────────────────────────
+const PRD_PROMPT_TEMPLATE = `You are a senior product designer and technical writer. Expand this app idea into a concise, specific product brief. Be direct and concrete — avoid vague generalities.
+
+Format your response in exactly this markdown structure:
+
+## App Name
+[2-4 word name. No generic words like "App", "Hub", "Pro".]
+
+## Tagline
+[One punchy sentence, max 10 words.]
+
+## Overview
+[2-3 sentences: what it does, who it's for, what makes it different.]
+
+## Target Users
+- [User type with specific context]
+- [User type with specific context]
+
+## Core Features
+- **Feature Name**: one-line description
+(list 5-7 features)
+
+## Design Direction
+[3-4 sentences covering: specific color palette mood, typography style, layout density, interaction feel, and real design references.]
+
+## Key Screens
+- **Screen Name**: brief description
+(list 5-6 screens)
+
+Total: 280-420 words. Be specific. Cite real design references.
+
+App idea: "{PROMPT}"
+Category: {CATEGORY}`;
+
+async function expandPromptToPRD(prompt, appType) {
+  const userMsg = PRD_PROMPT_TEMPLATE
+    .replace('{PROMPT}',   prompt)
+    .replace('{CATEGORY}', appType && appType !== 'auto' ? appType : 'auto-detect');
+
+  const llmText = await callLLM(userMsg);
+  if (llmText) {
+    console.log('  🤖 PRD generated via LLM');
+    return llmText;
+  }
+
+  console.log('  📝 PRD generated via rule-based fallback (add ANTHROPIC_API_KEY or OPENAI_API_KEY to community-config.json for LLM expansion)');
+  return generateRuleBasedPRD(prompt, appType);
+}
+
+function inferCategoryFromPrompt(p) {
+  const t = p.toLowerCase();
+  if (/finance|money|budget|bank|payment|invest|wealth|spend|saving|crypto|wallet|revenue|metric|reporting/.test(t)) return 'finance';
+  if (/health|fitness|workout|exercise|sleep|nutrition|wellness|mental|meditation|care/.test(t)) return 'health';
+  if (/social|community|friend|connect|chat|message|share|post|follow|telegram|discord/.test(t)) return 'social';
+  if (/music|audio|podcast|playlist|song|listen|beat|sound/.test(t)) return 'music';
+  if (/travel|map|route|trip|navigate|hotel|flight|explore|destination/.test(t)) return 'travel';
+  if (/food|recipe|cook|restaurant|meal|eat|ingredient|diet/.test(t)) return 'food';
+  if (/shop|commerce|market|buy|sell|product|store|ecommerce/.test(t)) return 'commerce';
+  if (/learn|course|study|education|quiz|lesson|skill|tutor/.test(t)) return 'education';
+  if (/design|creative|art|photo|video|edit|portfolio/.test(t)) return 'creative';
+  return 'productivity';
+}
+
+function deriveNameFromPrompt(prompt, fallback) {
+  const stopWords = new Set(['that','with','your','this','from','into','have','will','about','should','would','could','their','there','where','which','what','when','just','very','over','under','more','most','some','such','only','both','also','then','than','them','they','been','being','each','much','many','these','those','while','after','before','since','until','even','like','well','does','gets','lets','puts','uses','adds','ones','ones']);
+  const words = prompt.replace(/[^a-z\s]/gi, ' ').toLowerCase().split(/\s+/).filter(w => w.length > 3 && !stopWords.has(w));
+  if (words.length > 0) return words[0].charAt(0).toUpperCase() + words[0].slice(1);
+  return fallback;
+}
+
+function generateRuleBasedPRD(prompt, appType) {
+  const cat = appType && appType !== 'auto' ? appType : inferCategoryFromPrompt(prompt);
+
+  const defs = {
+    finance: {
+      name:     deriveNameFromPrompt(prompt, 'Ledger'),
+      tagline:  'Your finances, beautifully clear.',
+      overview: 'A financial monitoring and reporting app that gives individuals and organizations a clear, real-time view of their financial health. It surfaces key metrics, automates reporting, and turns raw transaction data into actionable insight.',
+      users:    ['Finance teams needing automated cross-department reporting', 'Small business owners tracking cash flow and profitability', 'Individuals building wealth through data-driven spending habits'],
+      features: ['**Dashboard**: Real-time KPIs — revenue, expenses, net position, and key ratios', '**Transaction Feed**: Categorized, searchable ledger with merchant tagging and bulk editing', '**Reports**: Auto-generated P&L, cash flow, and budget-vs-actual with PDF export', '**Budget Planner**: Set targets by category with real-time variance tracking', '**Alerts**: Configurable thresholds for anomaly detection and budget overruns', '**Analytics**: Trend charts, forecasting curves, and period-over-period comparison'],
+      design:   'Deep navy or near-black backgrounds inspired by Robinhood and Revolut — financial data reads as more authoritative on dark surfaces. Primary accent in emerald green for positive values; red strictly for negative. All numerals in a monospaced typeface for optical alignment in tables and charts. Layout is data-dense but breathable: clear hierarchy with 4px baseline grid, subtle card separators, no decorative elements.',
+      screens:  ['**Home Dashboard**: KPI summary cards, spending ring chart, recent activity feed', '**Transaction History**: Searchable ledger with category filter chips and CSV export', '**Report View**: P&L statement with drill-down into line items', '**Budget Tracker**: Category progress bars with over/under indicators', '**Analytics**: Trend lines, bar chart comparisons, and date-range selector'],
+    },
+    productivity: {
+      name:     deriveNameFromPrompt(prompt, 'Flow'),
+      tagline:  'Work that actually moves forward.',
+      overview: 'A task and project management app built for focused individuals and lean teams. It combines rapid task capture, time blocking, and progress reviews in a single opinionated workspace that respects your time.',
+      users:    ['Knowledge workers managing complex, multi-project workloads', 'Freelancers juggling multiple clients and deadlines', 'Small teams needing lightweight coordination without enterprise overhead'],
+      features: ['**Task Inbox**: Rapid capture with natural-language date and priority parsing', '**Today View**: Focused daily agenda with time blocks and a burndown tracker', '**Projects**: Hierarchical task organization with status, owner, and due date', '**Weekly Review**: Auto-generated summary of completed work and open loops', '**Integrations**: Two-way calendar sync, Slack notifications, GitHub issue linking', '**Analytics**: Velocity charts, completion rate trends, and focus-time breakdown'],
+      design:   'Clean and fast — inspired by Linear and Things 3. Warm off-white or light backgrounds for focus context; dark mode available. Indigo or electric blue for active states and CTAs. Geometric sans-serif for UI chrome; slightly warmer humanist for body text. Dense list views with compact 32px row heights; detail panels slide in from the right. Animation is minimal and purposeful.',
+      screens:  ['**Inbox**: Capture bar, unprocessed task list, quick-triage controls', '**Today**: Time-blocked agenda with drag-to-reschedule and completion checkboxes', '**Project Board**: Kanban view with status columns and compact task cards', '**Task Detail**: Description, subtasks, attachments, activity log, due date', '**Weekly Review**: Completion stats, open loops, and next-week planning surface'],
+    },
+    social: {
+      name:     deriveNameFromPrompt(prompt, 'Gather'),
+      tagline:  'Closer to the people that matter.',
+      overview: 'A community platform built for meaningful connection over passive scrolling. It creates structured shared spaces for groups with common interests through threaded discussion, collaborative content, and real-time coordination.',
+      users:    ['Niche interest communities seeking alternatives to algorithmic social feeds', 'Friend groups wanting a private, organized digital home base', 'Creators building direct relationships with their audience'],
+      features: ['**Spaces**: Topic-organized community rooms with threaded discussion and pinned content', '**Feed**: Reverse-chronological posts — no engagement algorithm', '**Direct Messages**: Private 1:1 and group messaging with rich media and reactions', '**Events**: In-app event creation with RSVP tracking and calendar export', '**Collections**: Shared curated boards for links, images, and recommendations', '**Discovery**: Interest-based community search without engagement-optimization tricks'],
+      design:   'Warm and human — terracotta, amber, or dusty rose accents against off-white or warm ivory. Avatar-forward layouts with editorial typography: display headings in a humanist serif or variable-weight grotesque, body text well-leaded. Dense conversation threads use tight line-height; standalone post cards get generous breathing room. No algorithmic badge counts.',
+      screens:  ['**Home Feed**: Chronological posts from connections, clean card layout', '**Space**: Community room with pinned content, thread list, member count', '**Thread**: Nested discussion with reply chains and emoji reactions', '**Profile**: Posts, collections, spaces joined, mutual connections', '**Direct Messages**: Conversation list + active chat with media preview'],
+    },
+    health: {
+      name:     deriveNameFromPrompt(prompt, 'Vitals'),
+      tagline:  'Your health, in full view.',
+      overview: 'A personal health tracking app that unifies fitness, nutrition, sleep, and mental wellness into a coherent daily picture. Designed for sustainable habit-building through gentle accountability rather than aggressive gamification.',
+      users:    ['Health-conscious individuals building long-term wellness routines', 'People managing chronic conditions who need symptom and medication tracking', 'Fitness enthusiasts who want performance data without sports-app complexity'],
+      features: ['**Daily Check-in**: Morning wellness snapshot — sleep quality, mood, energy, hydration', '**Activity Log**: Workout tracking with type, duration, intensity, and GPS routes', '**Nutrition**: Meal and hydration logging with macro and calorie breakdown', '**Sleep Analysis**: Duration and quality trends with 30-day rolling averages', '**Correlations**: Cross-metric pattern detection (sleep vs. mood, steps vs. energy)', '**Habit Streaks**: Up to 8 tracked daily habits with gentle push reminders'],
+      design:   'Calm and supportive — health UIs should never feel clinical. Soft warm-white or very light sage backgrounds. Primary accent in a confident but non-aggressive teal or green; warm amber for caution states; soft lavender for mental wellness contexts. Everything rounded — cards, buttons, charts. Motion is gentle: health data surfaces slowly, never urgently.',
+      screens:  ['**Today**: Daily stats ring, habit checklist, quick-log shortcuts', '**Activity**: Workout history with effort color-coding and weekly summary', '**Nutrition**: Macro ring, meal log with food search and recent items', '**Sleep**: Last-night detail view + 30-day trend chart', '**Insights**: Weekly summary cards highlighting correlations and streak records'],
+    },
+  };
+
+  const d = defs[cat] || defs.productivity;
+  return [
+    `## App Name\n${d.name}`,
+    `## Tagline\n${d.tagline}`,
+    `## Overview\n${d.overview}`,
+    `## Target Users\n${d.users.map(u => `- ${u}`).join('\n')}`,
+    `## Core Features\n${d.features.map(f => `- ${f}`).join('\n')}`,
+    `## Design Direction\n${d.design}`,
+    `## Key Screens\n${d.screens.map(s => `- ${s}`).join('\n')}`,
+  ].join('\n\n');
+}
+
+// ── PRD parser — extracts design signals from the markdown ───────────────────
+function parsePRD(markdown) {
+  const result = { appName: null, tagline: null, designDirection: null, features: [], screens: [] };
+  const sectionRegex = /^## (.+)$/gm;
+  const positions = [];
+  let m;
+  while ((m = sectionRegex.exec(markdown)) !== null) {
+    positions.push({ name: m[1].trim().toLowerCase(), pos: m.index + m[0].length });
+  }
+  const get = name => {
+    const i = positions.findIndex(p => p.name === name);
+    if (i < 0) return '';
+    const start = positions[i].pos;
+    const end   = i + 1 < positions.length ? positions[i + 1].pos - positions[i + 1].name.length - 5 : undefined;
+    return markdown.slice(start, end).trim();
+  };
+  const raw = get('app name');
+  if (raw) result.appName = raw.replace(/[\[\]]/g, '').split('\n')[0].trim().replace(/\.$/, '').replace(/^["']|["']$/g, '');
+  const tag = get('tagline');
+  if (tag) result.tagline = tag.replace(/[\[\]]/g, '').split('\n')[0].trim().replace(/\.$/, '').replace(/^["']|["']$/g, '');
+  result.designDirection = get('design direction');
+  result.features = get('core features').split('\n').filter(l => l.startsWith('- ')).map(l => l.slice(2).trim());
+  result.screens  = get('key screens').split('\n').filter(l => l.startsWith('- ')).map(l => l.slice(2).trim());
+  return result;
+}
+
+// ── Minimal markdown → HTML renderer (for PRD display) ───────────────────────
+function mdToHtml(md) {
+  return md
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/^## (.+)$/gm,  '<h3>$1</h3>')
+    .replace(/^### (.+)$/gm, '<h4>$1</h4>')
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.+?)\*/g,    '<em>$1</em>')
+    .replace(/^- (.+)$/gm,   '<li>$1</li>')
+    .replace(/(<li>.*<\/li>\n?)+/g, s => `<ul>${s}</ul>`)
+    .replace(/\n\n+/g, '</p><p>')
+    .replace(/^(?!<[hul])/gm, '')
+    .replace(/^<\/p><p>(<[hul])/gm, '$1')
+    .replace(/(<\/[hul][^>]*>)<\/p><p>/g, '$1')
+    .trim();
+}
+
 // ── Design generator ──────────────────────────────────────────────────────────
 const { generateDesign } = require('./community-design-generator');
 
@@ -187,7 +426,7 @@ function screenThumbSVG(screen, tw, th) {
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${sw} ${sh}" width="${tw}" height="${th}" style="display:block;border-radius:6px;flex-shrink:0"><rect width="${sw}" height="${sh}" fill="${screen.fill||'#111'}"/>${kids}</svg>`;
 }
 
-function buildHeartbeatHTML(sub, doc, meta, penJson) {
+function buildHeartbeatHTML(sub, doc, meta, penJson, prdMarkdown) {
   const encoded = Buffer.from(JSON.stringify(penJson)).toString('base64');
   const screens = doc.children || [];
   // Thumbnail dimensions — all at height 180px, width proportional to aspect ratio
@@ -232,6 +471,13 @@ function buildHeartbeatHTML(sub, doc, meta, penJson) {
   .prompt-section{padding:40px;border-top:1px solid ${meta.palette.accent}22}
   .p-label{font-size:10px;letter-spacing:2px;color:${meta.palette.accent};margin-bottom:12px}
   .p-text{font-size:18px;opacity:.6;font-style:italic;max-width:600px;line-height:1.6}
+  .prd-section{padding:40px;border-top:1px solid ${meta.palette.accent}22;max-width:780px}
+  .prd-section h3{font-size:10px;letter-spacing:2px;color:${meta.palette.accent};margin:28px 0 10px;font-weight:700}
+  .prd-section h3:first-child{margin-top:0}
+  .prd-section p,.prd-section li{font-size:14px;opacity:.65;line-height:1.72;max-width:680px}
+  .prd-section ul{padding-left:18px;margin:6px 0}
+  .prd-section li{margin-bottom:4px}
+  .prd-section strong{opacity:1;color:${meta.palette.fg}}
   footer{padding:28px 40px;border-top:1px solid ${meta.palette.accent}11;font-size:11px;opacity:.3;display:flex;justify-content:space-between}
 </style>
 </head>
@@ -253,6 +499,7 @@ function buildHeartbeatHTML(sub, doc, meta, penJson) {
   <div class="actions">
     <button class="btn btn-p" onclick="openInViewer()">▶ Open in Pen Viewer</button>
     <button class="btn btn-s" onclick="downloadPen()">↓ Download .pen</button>
+    <button class="btn btn-s" onclick="shareOnX()">𝕏 Share</button>
     <a class="btn btn-s" href="https://zenbin.org/p/design-gallery-2">← Gallery</a>
     <a class="btn btn-s" href="https://zenbin.org/p/design-submit-3">Submit Idea</a>
   </div>
@@ -265,6 +512,10 @@ function buildHeartbeatHTML(sub, doc, meta, penJson) {
   <div class="p-label">ORIGINAL PROMPT</div>
   <p class="p-text">"${sub.prompt}"</p>
 </section>
+${prdMarkdown ? `<section class="prd-section">
+  <div class="p-label">PRODUCT BRIEF</div>
+  ${mdToHtml(prdMarkdown)}
+</section>` : ''}
 <footer>
   <span>Generated by RAM Design Studio</span>
   <span>zenbin.org/p/${sub.id}</span>
@@ -289,6 +540,11 @@ function downloadPen(){
     a.click();
     URL.revokeObjectURL(a.href);
   }catch(e){alert('Download failed: '+e.message);}
+}
+function shareOnX(){
+  const text=encodeURIComponent('Check out ${meta.appName} — an AI-generated app design from RAM Design Studio 🎨');
+  const url=encodeURIComponent(window.location.href);
+  window.open('https://x.com/intent/tweet?text='+text+'&url='+url,'_blank');
 }
 <\/script>
 </body>
@@ -362,9 +618,21 @@ async function main() {
     console.log(`\n▶ [${slug}] "${sub.prompt.slice(0,60)}..."`);
 
     try {
-      // Generate design
+      // Step 1: Expand prompt into a full Product Requirements Document
+      console.log('  📋 Expanding prompt into product brief...');
+      const prdMarkdown = await expandPromptToPRD(sub.prompt, sub.app_type);
+      const prd = parsePRD(prdMarkdown);
+      if (prd.appName)  console.log(`     App name:  ${prd.appName}`);
+      if (prd.tagline)  console.log(`     Tagline:   ${prd.tagline}`);
+      if (prd.features.length) console.log(`     Features:  ${prd.features.length} extracted`);
+
+      // Step 2: Generate design — PRD signals override auto-detected values
       console.log('  🎨 Generating design...');
-      const { doc, meta } = generateDesign({ prompt: sub.prompt, appNameOverride: sub.app_name_override });
+      const { doc, meta } = generateDesign({
+        prompt:          prdMarkdown || sub.prompt,  // richer context for archetype detection
+        appNameOverride: sub.app_name_override || prd.appName || undefined,
+        taglineOverride: prd.tagline || undefined,
+      });
       console.log(`  ✓ ${meta.appName} (${meta.archetype}, ${meta.screens} screens)`);
 
       // Publish design page
@@ -375,7 +643,7 @@ async function main() {
       sub.published_at = new Date().toISOString();
       sub.status       = 'done';
 
-      const html = buildHeartbeatHTML(sub, doc, meta, doc);
+      const html = buildHeartbeatHTML(sub, doc, meta, doc, prdMarkdown);
       console.log(`  📤 Publishing to zenbin.org/p/${designSlug}...`);
 
       let publishedOk = false;
