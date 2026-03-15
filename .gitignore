@@ -1,0 +1,10 @@
+# Local config — contains GitHub PAT, never commit
+community-config.json
+
+# Runtime state — generated on each processor run
+zenbin-queue-state.json
+
+# Screenshots and scratch files
+*.png
+*.pen
+
