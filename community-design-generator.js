@@ -207,15 +207,16 @@ function mobileHero(ox, P, appName, tagline) {
   ]});
 }
 
-function mobileFeed(ox, P, appName, cardLabels) {
+function mobileFeed(ox, P, appName, cardLabels, screenTitle) {
   const { bg, surface, border, muted, fg, accent, accent2 } = P;
   const cards = cardLabels || ['Featured Today','Just Added','Popular Now','Trending','For You'];
+  const header = screenTitle || 'Explore';
   return F(ox, 0, 375, 812, bg, { clip: true, ch: [
     T('9:41', 16, 14, 60, 16, { size:12, weight:600, fill:fg }),
     T('●●●●', 295, 14, 70, 16, { size:9, fill:muted }),
 
     // header
-    T('Explore', 24, 50, 200, 28, { size:22, weight:800, fill:fg }),
+    T(header, 24, 50, 280, 28, { size:22, weight:800, fill:fg }),
     E(323, 46, 36, 36, accent+'22', {}),
     T('🔍', 327, 52, 24, 24, { size:16, fill:muted }),
 
@@ -305,14 +306,15 @@ function mobileDetail(ox, P, appName, itemName) {
   ]});
 }
 
-function mobileForm(ox, P, appName) {
+function mobileForm(ox, P, appName, screenTitle) {
   const { bg, surface, border, muted, fg, accent, accent2 } = P;
+  const formTitle = screenTitle || 'Create New';
   return F(ox, 0, 375, 812, bg, { clip: true, ch: [
     T('9:41', 16, 14, 60, 16, { size:12, weight:600, fill:fg }),
     T('●●●●', 295, 14, 70, 16, { size:9, fill:muted }),
 
     T('← Back', 24, 46, 80, 20, { size:14, fill:muted }),
-    T('Create New', 24, 76, 260, 32, { size:26, weight:800, fill:fg }),
+    T(formTitle, 24, 76, 320, 32, { size:26, weight:800, fill:fg }),
     T('Fill in the details below', 24, 112, 260, 18, { size:13, fill:muted }),
 
     // fields
@@ -453,7 +455,7 @@ function desktopLanding(ox, P, appName, tagline) {
   ]});
 }
 
-function desktopDashboard(ox, P, appName) {
+function desktopDashboard(ox, P, appName, screenTitle) {
   const { bg, surface, border, muted, fg, accent, accent2 } = P;
   return F(ox, 0, 1440, DH, bg, { clip: true, ch: [
     // sidebar
@@ -479,7 +481,7 @@ function desktopDashboard(ox, P, appName) {
     // top bar
     F(SW, 0, 1440-SW, 64, bg, { ch:[
       Line(0, 63, 1440-SW, { fill:border }),
-      T('Overview', 32, 20, 240, 26, { size:20, weight:700, fill:fg }),
+      T(screenTitle || 'Overview', 32, 20, 400, 26, { size:20, weight:700, fill:fg }),
       T("Here's your summary", 32, 46, 240, 16, { size:12, fill:muted }),
       F(1440-SW-180, 16, 140, 32, accent, { r:6, ch:[
         T('+ New Item', 0, 7, 140, 18, { size:13, fill:bg, weight:700, align:'center' }),
@@ -553,7 +555,7 @@ function desktopDashboard(ox, P, appName) {
   ]});
 }
 
-function desktopGrid(ox, P, appName) {
+function desktopGrid(ox, P, appName, screenTitle) {
   const { bg, surface, border, muted, fg, accent, accent2 } = P;
   return F(ox, 0, 1440, DH, bg, { clip: true, ch: [
     // sidebar
@@ -574,7 +576,7 @@ function desktopGrid(ox, P, appName) {
     // top bar
     F(SW, 0, 1440-SW, 64, bg, { ch:[
       Line(0, 63, 1440-SW, { fill:border }),
-      T('Browse', 32, 20, 240, 26, { size:20, weight:700, fill:fg }),
+      T(screenTitle || 'Browse', 32, 20, 400, 26, { size:20, weight:700, fill:fg }),
       // filters
       ...['All','Recent','Popular','Saved'].map((f,i) => {
         const active = i===0;
@@ -619,7 +621,7 @@ function desktopGrid(ox, P, appName) {
   ]});
 }
 
-function desktopDetail(ox, P, appName) {
+function desktopDetail(ox, P, appName, screenTitle) {
   const { bg, surface, border, muted, fg, accent, accent2 } = P;
   const cw = 1440 - SW;
   return F(ox, 0, 1440, DH, bg, { clip: true, ch: [
@@ -655,7 +657,7 @@ function desktopDetail(ox, P, appName) {
     ]}),
 
     // right info panel
-    T('Item Title', SW+32+620, 80, 720, 40, { size:32, weight:800, ls:-0.5, fill:fg }),
+    T(screenTitle || 'Item Title', SW+32+620, 80, 720, 40, { size:32, weight:800, ls:-0.5, fill:fg }),
     F(SW+32+620, 128, 48, 4, accent, {}),
     T('Complete description of this item with all the details you need.\nA carefully curated piece for your collection.', SW+32+620, 144, 700, 52, { size:14, fill:muted, lh:26 }),
     F(SW+32+620, 220, 160, 52, accent, { r:8, ch:[
@@ -788,13 +790,16 @@ const MSX = i => i * (MW + MGAP);
 const DESKTOP_START = 5 * (MW + MGAP) + 200;
 const DSX = i => DESKTOP_START + i * (DW + DGAP);
 
-function generateDesign({ prompt, appNameOverride, taglineOverride }) {
+function generateDesign({ prompt, appNameOverride, taglineOverride, screenNamesOverride }) {
   resetId();
 
   const archetype = detectArchetype(prompt);
   const pal = ARCHETYPES[archetype];
   const appName = appNameOverride || extractAppName(prompt, archetype);
   const tagline = taglineOverride || pal.tagline;
+
+  // Screen names from PRD (5 names map to both mobile + desktop)
+  const sn = screenNamesOverride || [];
 
   const P = {
     bg:      pal.bg,
@@ -806,18 +811,18 @@ function generateDesign({ prompt, appNameOverride, taglineOverride }) {
     accent2: pal.accent2,
   };
 
-  // Mobile screens
+  // Mobile screens — sn[0..4] used as screen titles where applicable
   const m0 = mobileHero(MSX(0), P, appName, tagline);
-  const m1 = mobileFeed(MSX(1), P, appName);
-  const m2 = mobileDetail(MSX(2), P, appName, appName + ' Detail');
-  const m3 = mobileForm(MSX(3), P, appName);
+  const m1 = mobileFeed(MSX(1), P, appName, null, sn[1]);
+  const m2 = mobileDetail(MSX(2), P, appName, sn[2] || appName + ' Detail');
+  const m3 = mobileForm(MSX(3), P, appName, sn[3]);
   const m4 = mobileProfile(MSX(4), P, appName);
 
-  // Desktop screens
+  // Desktop screens — sn[0..4] used as section titles
   const d0 = desktopLanding(DSX(0), P, appName, tagline);
-  const d1 = desktopDashboard(DSX(1), P, appName);
-  const d2 = desktopGrid(DSX(2), P, appName);
-  const d3 = desktopDetail(DSX(3), P, appName);
+  const d1 = desktopDashboard(DSX(1), P, appName, sn[0]);
+  const d2 = desktopGrid(DSX(2), P, appName, sn[1]);
+  const d3 = desktopDetail(DSX(3), P, appName, sn[2]);
   const d4 = desktopSettings(DSX(4), P, appName);
 
   const doc = {
