@@ -1,0 +1,548 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Community Gallery — Design Studio</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:      #050509;
+    --surface: #0d0d16;
+    --border:  #1c1c28;
+    --muted:   #5a5a70;
+    --fg:      #f4f0e8;
+    --accent:  #c8a84b;
+    --accent2: #3a8fff;
+    --green:   #3acd7a;
+    --red:     #cd3a4e;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--fg);
+    font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', ui-monospace, monospace;
+    min-height: 100vh;
+  }
+
+  /* ── Nav ── */
+  nav {
+    padding: 20px 40px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    position: sticky;
+    top: 0;
+    background: var(--bg);
+    z-index: 100;
+    backdrop-filter: blur(10px);
+  }
+  .nav-logo { font-size: 14px; font-weight: 700; letter-spacing: 4px; color: var(--fg); text-decoration: none; }
+  .nav-links { display: flex; gap: 28px; align-items: center; }
+  .nav-links a { font-size: 12px; color: var(--muted); text-decoration: none; letter-spacing: 1px; }
+  .nav-links a:hover { color: var(--fg); }
+  .nav-submit-btn {
+    background: var(--accent);
+    color: var(--bg);
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    text-decoration: none;
+    display: inline-block;
+  }
+
+  /* ── Hero ── */
+  .hero {
+    padding: 80px 40px 48px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    gap: 40px;
+    flex-wrap: wrap;
+  }
+  .hero-left {}
+  .hero-tag {
+    font-size: 10px;
+    letter-spacing: 3px;
+    color: var(--accent);
+    margin-bottom: 20px;
+  }
+  .hero-title {
+    font-size: clamp(32px, 5vw, 64px);
+    font-weight: 900;
+    letter-spacing: -1.5px;
+    line-height: 1;
+    margin-bottom: 20px;
+  }
+  .hero-sub {
+    font-size: 15px;
+    color: var(--muted);
+    max-width: 440px;
+    line-height: 1.7;
+  }
+  .hero-stats {
+    display: flex;
+    gap: 40px;
+    flex-shrink: 0;
+  }
+  .stat-item { text-align: right; }
+  .stat-value {
+    font-size: 32px;
+    font-weight: 800;
+    color: var(--accent);
+    display: block;
+    letter-spacing: -1px;
+  }
+  .stat-label {
+    font-size: 10px;
+    letter-spacing: 2px;
+    color: var(--muted);
+    display: block;
+    margin-top: 4px;
+  }
+
+  /* ── Filters ── */
+  .filters {
+    padding: 20px 40px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .filter-label { font-size: 10px; letter-spacing: 2px; color: var(--muted); margin-right: 8px; }
+  .filter-btn {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    font-family: inherit;
+    font-size: 11px;
+    letter-spacing: 0.5px;
+    padding: 7px 16px;
+    border-radius: 20px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .filter-btn:hover { border-color: var(--muted); color: var(--fg); }
+  .filter-btn.active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--bg);
+    font-weight: 700;
+  }
+
+  /* ── Grid ── */
+  .gallery-section {
+    padding: 40px;
+  }
+  .gallery-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 20px;
+  }
+
+  /* Design card */
+  .design-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    text-decoration: none;
+    display: flex;
+    flex-direction: column;
+    transition: border-color 0.2s, transform 0.2s;
+  }
+  .design-card:hover {
+    border-color: var(--accent)66;
+    transform: translateY(-2px);
+  }
+  .card-thumb {
+    height: 160px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    overflow: hidden;
+  }
+  .card-thumb-inner {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .card-app-name {
+    font-size: 36px;
+    font-weight: 900;
+    letter-spacing: 4px;
+    color: rgba(255,255,255,0.15);
+    text-align: center;
+    user-select: none;
+  }
+  .card-arch-badge {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    padding: 4px 10px;
+    border-radius: 10px;
+    background: rgba(0,0,0,0.4);
+    backdrop-filter: blur(4px);
+  }
+  .card-screens-badge {
+    position: absolute;
+    bottom: 12px;
+    left: 12px;
+    font-size: 9px;
+    color: rgba(255,255,255,0.4);
+    letter-spacing: 1px;
+  }
+  .card-body {
+    padding: 20px;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .card-name {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--fg);
+    letter-spacing: 1px;
+  }
+  .card-tagline {
+    font-size: 12px;
+    color: var(--muted);
+    line-height: 1.5;
+    flex: 1;
+  }
+  .card-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 20px;
+    border-top: 1px solid var(--border);
+  }
+  .card-date { font-size: 11px; color: var(--muted); }
+  .card-arrow { font-size: 16px; color: var(--muted); }
+
+  /* ── Empty / Loading states ── */
+  .state-box {
+    grid-column: 1 / -1;
+    padding: 80px 40px;
+    text-align: center;
+  }
+  .state-icon { font-size: 40px; margin-bottom: 20px; opacity: 0.3; }
+  .state-title { font-size: 18px; font-weight: 700; margin-bottom: 10px; }
+  .state-sub { font-size: 14px; color: var(--muted); }
+
+  /* spinner */
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .spinner {
+    width: 32px; height: 32px;
+    border: 2px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    margin: 0 auto 20px;
+  }
+
+  /* ── Pending section ── */
+  .pending-section {
+    padding: 0 40px 60px;
+  }
+  .pending-title {
+    font-size: 10px;
+    letter-spacing: 3px;
+    color: var(--muted);
+    margin-bottom: 20px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border);
+  }
+  .pending-list { display: flex; flex-direction: column; gap: 12px; }
+  .pending-item {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 16px 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 20px;
+  }
+  .pending-prompt { font-size: 13px; color: var(--fg); opacity: 0.6; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .pending-id { font-size: 10px; letter-spacing: 1px; color: var(--muted); flex-shrink: 0; }
+  .status-badge {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    padding: 4px 10px;
+    border-radius: 10px;
+    flex-shrink: 0;
+  }
+  .status-pending    { background: var(--accent)22; color: var(--accent); }
+  .status-processing { background: var(--accent2)22; color: var(--accent2); }
+  .status-error      { background: var(--red)22; color: var(--red); }
+
+  /* ── Footer ── */
+  .page-footer {
+    padding: 32px 40px;
+    border-top: 1px solid var(--border)66;
+    font-size: 11px;
+    color: var(--muted);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 16px;
+    opacity: 0.6;
+  }
+  .refresh-btn {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    font-family: inherit;
+    font-size: 11px;
+    padding: 6px 14px;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+  .refresh-btn:hover { color: var(--fg); }
+  #last-updated { font-size: 11px; color: var(--muted); }
+</style>
+</head>
+<body>
+
+<nav>
+  <a class="nav-logo" href="#">DESIGN STUDIO</a>
+  <div class="nav-links">
+    <a href="https://zenbin.org/p/pen-viewer-2">Pen Viewer</a>
+    <a href="https://zenbin.org/p/design-submit" class="nav-submit-btn">Submit Idea →</a>
+  </div>
+</nav>
+
+<section class="hero">
+  <div class="hero-left">
+    <div class="hero-tag">COMMUNITY GALLERY  ·  BY THE PEOPLE</div>
+    <h1 class="hero-title">Community<br>Designs</h1>
+    <p class="hero-sub">User-submitted app ideas, generated into full UI designs by the RAM Design Studio agent. Mobile + desktop, every time.</p>
+  </div>
+  <div class="hero-stats">
+    <div class="stat-item">
+      <span class="stat-value" id="stat-total">—</span>
+      <span class="stat-label">TOTAL DESIGNS</span>
+    </div>
+    <div class="stat-item">
+      <span class="stat-value" id="stat-pending">—</span>
+      <span class="stat-label">IN QUEUE</span>
+    </div>
+  </div>
+</section>
+
+<div class="filters">
+  <span class="filter-label">FILTER:</span>
+  <button class="filter-btn active" data-arch="all">All</button>
+  <button class="filter-btn" data-arch="productivity">Productivity</button>
+  <button class="filter-btn" data-arch="social">Social</button>
+  <button class="filter-btn" data-arch="finance">Finance</button>
+  <button class="filter-btn" data-arch="health">Health</button>
+  <button class="filter-btn" data-arch="music">Music</button>
+  <button class="filter-btn" data-arch="food">Food</button>
+  <button class="filter-btn" data-arch="travel">Travel</button>
+  <button class="filter-btn" data-arch="education">Education</button>
+</div>
+
+<section class="gallery-section">
+  <div class="gallery-grid" id="gallery-grid">
+    <div class="state-box">
+      <div class="spinner"></div>
+      <div class="state-title">Loading gallery...</div>
+    </div>
+  </div>
+</section>
+
+<section class="pending-section" id="pending-section" style="display:none">
+  <div class="pending-title">IN QUEUE</div>
+  <div class="pending-list" id="pending-list"></div>
+</section>
+
+<footer class="page-footer">
+  <span>RAM Design Studio  ·  Community Gallery</span>
+  <span id="last-updated">Checking for updates...</span>
+  <button class="refresh-btn" onclick="loadGallery(true)">↻ Refresh</button>
+</footer>
+
+<script>
+// ── Config ────────────────────────────────────────────────────────────────────
+// Public raw URL — no auth needed. Queue is updated by the agent server-side.
+const QUEUE_URL = 'https://raw.githubusercontent.com/hyperio-mc/design-studio-queue/main/queue.json';
+
+// Archetype palettes for card thumbnails
+const ARCH = {
+  music:       { bg:'#0a0a12', accent:'#c8953a', label:'MUSIC' },
+  food:        { bg:'#0d0b09', accent:'#d4863a', label:'FOOD' },
+  finance:     { bg:'#060c14', accent:'#3a8fff', label:'FINANCE' },
+  health:      { bg:'#060f08', accent:'#3acd7a', label:'HEALTH' },
+  travel:      { bg:'#060a14', accent:'#4a9fff', label:'TRAVEL' },
+  social:      { bg:'#0d0610', accent:'#c840ff', label:'SOCIAL' },
+  education:   { bg:'#07080f', accent:'#6060ff', label:'EDU' },
+  commerce:    { bg:'#0f0808', accent:'#e06030', label:'COMMERCE' },
+  creative:    { bg:'#080808', accent:'#ff6060', label:'CREATIVE' },
+  productivity:{ bg:'#05050a', accent:'#c8a84b', label:'PRODUCTIVITY' },
+};
+
+// ── State ─────────────────────────────────────────────────────────────────────
+let allDesigns = [];
+let activeFilter = 'all';
+
+// ── Load gallery ──────────────────────────────────────────────────────────────
+async function loadGallery(silent = false) {
+  if (!silent) {
+    document.getElementById('gallery-grid').innerHTML =
+      '<div class="state-box"><div class="spinner"></div><div class="state-title">Loading gallery...</div></div>';
+  }
+
+  try {
+    // Fetch from public raw GitHub URL — no auth, no rate-limit concerns
+    const res = await fetch(QUEUE_URL + '?t=' + Date.now()); // cache-bust
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const queue = await res.json();
+    const subs = queue.submissions || [];
+
+    const done    = subs.filter(s => s.status === 'done').reverse();
+    const pending = subs.filter(s => s.status === 'pending' || s.status === 'processing');
+    const errors  = subs.filter(s => s.status === 'error');
+
+    allDesigns = done;
+
+    document.getElementById('stat-total').textContent = done.length;
+    document.getElementById('stat-pending').textContent = pending.length;
+    document.getElementById('last-updated').textContent =
+      `Updated ${new Date().toLocaleTimeString()}`;
+
+    renderGrid();
+    renderPending([...pending, ...errors]);
+
+  } catch (err) {
+    if (!silent) {
+      showEmpty('Could not load gallery', `Error: ${err.message}`);
+    }
+    document.getElementById('last-updated').textContent = `Error: ${err.message}`;
+  }
+}
+
+// ── Render grid ───────────────────────────────────────────────────────────────
+function renderGrid() {
+  const grid = document.getElementById('gallery-grid');
+  const filtered = activeFilter === 'all'
+    ? allDesigns
+    : allDesigns.filter(d => d.archetype === activeFilter);
+
+  if (!filtered.length) {
+    if (activeFilter !== 'all') {
+      showEmpty('No designs yet', `No ${activeFilter} designs in the gallery yet. Be the first to submit one!`);
+    } else {
+      showEmpty('Gallery is empty', 'No community designs yet. Submit the first idea!');
+    }
+    return;
+  }
+
+  grid.innerHTML = filtered.map(s => {
+    const arch = ARCH[s.archetype] || ARCH.productivity;
+    const date = s.published_at
+      ? new Date(s.published_at).toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' })
+      : 'Recent';
+    const name = s.app_name || s.id;
+    const url = s.design_url || '#';
+
+    return `
+      <a class="design-card" href="${url}" target="_blank" rel="noopener">
+        <div class="card-thumb" style="background:${arch.bg}">
+          <div class="card-thumb-inner">
+            <div class="card-app-name">${name}</div>
+          </div>
+          <div class="card-arch-badge" style="color:${arch.accent}">${arch.label}</div>
+          <div class="card-screens-badge">5 MOBILE  ·  5 DESKTOP</div>
+        </div>
+        <div class="card-body">
+          <div class="card-name">${name}</div>
+          <div class="card-tagline">${truncate(s.prompt, 100)}</div>
+        </div>
+        <div class="card-footer">
+          <div class="card-date">${date}</div>
+          <div class="card-arrow">→</div>
+        </div>
+      </a>
+    `;
+  }).join('');
+}
+
+// ── Render pending queue ──────────────────────────────────────────────────────
+function renderPending(items) {
+  const section = document.getElementById('pending-section');
+  const list = document.getElementById('pending-list');
+
+  if (!items.length) {
+    section.style.display = 'none';
+    return;
+  }
+
+  section.style.display = 'block';
+  list.innerHTML = items.map(s => {
+    const statusClass = s.status === 'error' ? 'status-error'
+      : s.status === 'processing' ? 'status-processing' : 'status-pending';
+    const statusLabel = s.status === 'error' ? 'ERROR'
+      : s.status === 'processing' ? 'PROCESSING' : 'PENDING';
+    return `
+      <div class="pending-item">
+        <div class="pending-prompt">"${s.prompt}"</div>
+        <div class="pending-id">${s.id}</div>
+        <div class="status-badge ${statusClass}">${statusLabel}</div>
+      </div>
+    `;
+  }).join('');
+}
+
+// ── Filters ───────────────────────────────────────────────────────────────────
+document.querySelectorAll('.filter-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    activeFilter = btn.dataset.arch;
+    renderGrid();
+  });
+});
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function truncate(str, n) {
+  if (!str) return '';
+  return str.length > n ? str.slice(0, n-1) + '…' : str;
+}
+
+function showEmpty(title, sub) {
+  document.getElementById('gallery-grid').innerHTML = `
+    <div class="state-box">
+      <div class="state-icon">◎</div>
+      <div class="state-title">${title}</div>
+      <div class="state-sub">${sub}</div>
+    </div>
+  `;
+}
+
+// ── Auto-refresh every 5 minutes ──────────────────────────────────────────────
+loadGallery();
+setInterval(() => loadGallery(true), 5 * 60 * 1000);
+</script>
+
+</body>
+</html>
