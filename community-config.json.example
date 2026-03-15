@@ -1,0 +1,8 @@
+{
+  "_note": "Copy this to community-config.json and fill in your values. Never commit community-config.json.",
+  "GITHUB_TOKEN": "ghp_...",
+  "GITHUB_REPO": "owner/design-studio-queue",
+  "QUEUE_FILE": "queue.json",
+  "RAW_QUEUE_URL": "https://raw.githubusercontent.com/owner/design-studio-queue/main/queue.json"
+}
+
